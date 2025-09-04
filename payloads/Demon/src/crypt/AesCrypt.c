@@ -111,11 +111,11 @@ void AesInit( PAESCTX ctx, const PUINT8 key, const PUINT8 iv)
 static void AddRoundKey(UINT8 round, state_t* state, const UINT8* RoundKey)
 {
     UINT8 i,j;
-    for (i = 0; i < 4; ++i)
+    for (i = 4; i > 0; --i)
     {
-        for (j = 0; j < 4; ++j)
+        for (j = 4; j > 0; --j)
         {
-            (*state)[i][j] ^= RoundKey[(round * Nb * 4) + (i * Nb) + j];
+            (*state)[i - 1][j - 1] ^= RoundKey[(round * Nb * 4) + ((i - 1) * Nb) + (j - 1)];
         }
     }
 }
@@ -217,30 +217,32 @@ static void Cipher(state_t* state, const UINT8* RoundKey) // Main
 void AesXCryptBuffer( PAESCTX ctx, PUINT8 buf, SIZE_T length)
 {
     UINT8 buffer[AES_BLOCKLEN];
-
-    size_t i;
-    int bi;
-    for (i = 0, bi = AES_BLOCKLEN; i < length; ++i, ++bi)
+    size_t processed = 0;
+    
+    while (processed < length)
     {
-        if (bi == AES_BLOCKLEN) /* we need to regen xor compliment in buffer */
+        // Generate keystream block
+        MemCopy(buffer, ctx->Iv, AES_BLOCKLEN);
+        Cipher((state_t*)buffer, ctx->RoundKey);
+        
+        // Process up to AES_BLOCKLEN bytes
+        for (int j = 0; j < AES_BLOCKLEN && processed < length; j++, processed++)
         {
-            MemCopy(buffer, ctx->Iv, AES_BLOCKLEN);
-            Cipher((state_t*)buffer,ctx->RoundKey);
-
-            for (bi = (AES_BLOCKLEN - 1); bi >= 0; --bi)
-            {
-                if (ctx->Iv[bi] == 255)
-	            {
-                    ctx->Iv[bi] = 0;
-                    continue;
-                }
-                ctx->Iv[bi] += 1;
-                break;
-            }
-            bi = 0;
+            buf[processed] ^= buffer[j];
         }
-        buf[i] = (buf[i] ^ buffer[bi]);
-  }
+        
+        // Increment counter
+        for (int k = AES_BLOCKLEN - 1; k >= 0; k--)
+        {
+            if (ctx->Iv[k] == 255)
+            {
+                ctx->Iv[k] = 0;
+                continue;
+            }
+            ctx->Iv[k]++;
+            break;
+        }
+    }
 }
 
 #endif
