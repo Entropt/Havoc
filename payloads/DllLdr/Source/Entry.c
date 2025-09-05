@@ -349,7 +349,7 @@ PVOID KLoadLibrary( PINSTANCE Instance, LPSTR ModuleName )
 
     UnicodeString.Buffer = ModuleNameW;
 
-    if ( NT_SUCCESS( Instance->Win32.LdrLoadDll( NULL, 0, &UnicodeString, &Module ) ) )
+    if ( NT_SUCCESS( ((INSTANCE *)Instance)->Win32.LdrLoadDll( NULL, 0, &UnicodeString, &Module ) ) )
         return Module;
     else
         return NULL;
