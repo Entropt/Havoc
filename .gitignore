@@ -35,5 +35,5 @@ client/Modules/
 # ignore vscode settings
 .vscode/
 
-# ignore profiles
+# ignore private profiles
 havoc.profile
