@@ -6,7 +6,7 @@ import sys
 
 def hash_string( string ):
     try:
-        hash = 5381
+        hash = 1205
 
         for x in string.upper():
             hash = (( hash << 5 ) + hash ) + ord(x)
@@ -17,7 +17,7 @@ def hash_string( string ):
 
 def hash_coffapi( string ):
     try:
-        hash = 5381
+        hash = 1205
 
         for x in string:
             hash = (( hash << 5 ) + hash ) + ord(x)

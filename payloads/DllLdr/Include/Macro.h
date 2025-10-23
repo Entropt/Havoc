@@ -1,7 +1,7 @@
 
 #include <windows.h>
 
-#define HASH_KEY 5381
+#define HASH_KEY 1205
 
 #ifdef _WIN64
     #define PPEB_PTR __readgsqword( 0x60 )

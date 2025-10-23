@@ -3,7 +3,7 @@
 
 long Hash( char* String )
 {
-  unsigned long Hash = 5381;
+  unsigned long Hash = 1205;
 	int c;
 
 	while (c = *String++)

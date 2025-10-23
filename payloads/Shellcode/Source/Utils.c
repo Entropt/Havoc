@@ -3,7 +3,7 @@
 
 SEC( text, B ) UINT_PTR HashString( LPVOID String, UINT_PTR Length )
 {
-    ULONG	Hash = 5381;
+    ULONG	Hash = 1205;
     PUCHAR	Ptr  = String;
 
     do
